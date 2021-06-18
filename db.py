@@ -5,9 +5,12 @@ def init():
   try:
     with open(os.path.join('db','db.json'), 'x') as f:
       defaults = {
-          'users':[],
-          'groups':[],
-          'whitelist':[]
+          'params':{
+            'update_period':300,
+            'use_whitelist':False
+            },
+          'whitelist':[],
+          'users':{},
           }
       json_obj = json.dumps(defaults, indent=2)
       f.write(json_obj)

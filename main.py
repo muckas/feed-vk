@@ -5,8 +5,9 @@ import telegram
 import logging
 from contextlib import suppress
 import telegram.ext
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, MessageHandler, Filters
 import db
+import traceback
 
 # Logger setup
 with suppress(FileExistsError):
@@ -36,7 +37,7 @@ with suppress(FileExistsError):
 
 vk_login = os.environ['VK_LOGIN']
 vk_password = os.environ['VK_PASSWORD']
-tg_token = os.environ['TG_TOKEN_TEST']
+tg_token = os.environ['TG_VKFEED_TOKEN']
 tg_userid = os.environ['TG_USERID']
 
 log.info('Connecting to vk...')
@@ -79,27 +80,60 @@ log.info('Connected to telegram')
 #     tg.send_message(chat_id=tg_userid, text=msg_text)
 
 help_text = '''
+Я буду слать тебе посты со стен групп или людей в VK
 Отправь ссылку на группу или человека в VK, чтобы подписаться на ленту
 /feed - показать список всех активных лент
-/remove <номер> - прекратить получать оповещения о постах, номер ленты можно узнать командой /feed
+/remove <номер> - удалить ленту, номер ленты можно узнать командой /feed
 '''
+
+def start_command(update, context):
+  help_command(update, context)
 
 def help_command(update, context):
   if whitelisted(update.message.chat['id']):
     update.message.reply_text(help_text)
 
+def add_feed(update, context):
+  if whitelisted(update.message.chat['id']):
+    user_id = update.message.chat['id']
+    url = update.message.text
+    settings = db.read()
+    try:
+      path, domain = url.split('https://vk.com/')
+      group = vk.groups.getById(group_id=domain, fields='name')
+      name = group[0]['name']
+      if user_id not in settings['users']:
+        settings['users'].update({user_id:{}})
+      if domain in settings['users'][user_id]:
+        update.message.reply_text(f'Группа "{name}" уже есть в ленте')
+      else:
+        settings['users'][user_id].update({domain:{'post_id':0}})
+        db.write(settings)
+        update.message.reply_text(f'Группа "{name}" добавлена в ленту')
+    except ValueError:
+      update.message.reply_text('Неверная ссылка')
+
+
 def whitelisted(userid):
-  setting = db.read()
-  if userid in settings['whitelist']:
-    return True
+  settings = db.read()
+  if settings['params']['use_whitelist']:
+    if userid in settings['whitelist']:
+      return True
+    else:
+      tg.send_message(chat_id = userid, text = f'Опа, а я тебя не знаю!\nТвой id - {userid}')
+      return False
   else:
-    tg.send_message(chat_id = userid, text = f'Опа, а я тебя не знаю!\nТвой id - {userid}')
-    return False
+    return True
 
 if __name__ == '__main__':
-  settings = db.init()
-  updater = telegram.ext.Updater(tg_token)
-  dispatcher = updater.dispatcher
-  dispatcher.add_handler(CommandHandler('help', help_command))
-  updater.start_polling()
-  updater.idle()
+  try:
+    db.init()
+    updater = telegram.ext.Updater(tg_token)
+    dispatcher = updater.dispatcher
+    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
+    dispatcher.add_handler(CommandHandler('help', help_command))
+    dispatcher.add_handler(CommandHandler('start', start_command))
+    updater.start_polling()
+    updater.idle()
+  except Exception as e:
+    log.error((traceback.format_exc()))
