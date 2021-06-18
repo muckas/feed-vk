@@ -1,4 +1,5 @@
 import os
+import time
 import datetime
 import vk_api
 import telegram
@@ -51,33 +52,31 @@ tg = telegram.Bot(tg_token)
 tg.get_me()
 log.info('Connected to telegram')
 
-# posts = vk.wall.get(domain='fest', count=1)['items']
-#
-# for post in posts:
-#   msg_text = ''
-#   msg_attachments = []
-#   post_id = post['id']
-#   post_text = post['text']
-#   msg_text = post_text
-#   if 'attachments' in post.keys():
-#     attachments = post['attachments']
-#     for attachment in attachments:
-#       if attachment['type'] == 'photo':
-#         sizes = attachment['photo']['sizes']
-#         photo = sorted(sizes, key = lambda item: item['height'])[-1]
-#         msg_attachments.append(photo['url'])
-#   if len(msg_attachments) > 1:
-#     msg_photos = []
-#     for photo in msg_attachments:
-#       if photo is msg_attachments[0]:
-#         msg_photos.append(telegram.InputMediaPhoto(media=photo, caption=msg_text))
-#       else:
-#         msg_photos.append(telegram.InputMediaPhoto(media=photo))
-#     tg.sendMediaGroup(chat_id=tg_userid, media=msg_photos)
-#   elif len(msg_attachments) == 1:
-#     tg.send_photo(chat_id=tg_userid, photo=msg_attachments[0], caption=msg_text)
-#   else:
-#     tg.send_message(chat_id=tg_userid, text=msg_text)
+def send_post(user_id, post, poster_name):
+  msg_text = ''
+  msg_attachments = []
+  post_id = post['id']
+  post_text = post['text']
+  msg_text = post_text + '\n----------------------------\n' + poster_name
+  if 'attachments' in post.keys():
+    attachments = post['attachments']
+    for attachment in attachments:
+      if attachment['type'] == 'photo':
+        sizes = attachment['photo']['sizes']
+        photo = sorted(sizes, key = lambda item: item['height'])[-1]
+        msg_attachments.append(photo['url'])
+  if len(msg_attachments) > 1:
+    msg_photos = []
+    for photo in msg_attachments:
+      if photo is msg_attachments[0]:
+        msg_photos.append(telegram.InputMediaPhoto(media=photo, caption=msg_text))
+      else:
+        msg_photos.append(telegram.InputMediaPhoto(media=photo))
+    tg.sendMediaGroup(chat_id=tg_userid, media=msg_photos)
+  elif len(msg_attachments) == 1:
+    tg.send_photo(chat_id=tg_userid, photo=msg_attachments[0], caption=msg_text)
+  else:
+    tg.send_message(chat_id=tg_userid, text=msg_text)
 
 help_text = '''
 Я буду слать тебе посты со стен групп или людей в VK
@@ -175,6 +174,27 @@ def whitelisted(userid):
   else:
     return True
 
+def mainloop():
+  while True:
+    log.info('Started posts update...')
+    settings = db.read()
+    for user in settings['users']:
+      for domain in settings['users'][user]:
+        last_post_id = settings['users'][user][domain]['post_id']
+        name = settings['users'][user][domain]['name']
+        posts = vk.wall.get(domain=domain, count=10)['items']
+        posts.reverse()
+        for post in posts:
+          if post['id'] > last_post_id:
+            log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
+            send_post(user, post, name)
+            last_post_id = post['id']
+            settings['users'][user][domain]['post_id'] = last_post_id
+            db.write(settings)
+    update_period = settings['params']['update_period']
+    log.info(f'Sleeping for {update_period} seconds...')
+    time.sleep(update_period)
+
 if __name__ == '__main__':
   try:
     db.init()
@@ -186,6 +206,7 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('feed', show_feed))
     dispatcher.add_handler(CommandHandler('remove', remove_from_feed))
     updater.start_polling()
+    mainloop()
     updater.idle()
   except Exception as e:
     log.error((traceback.format_exc()))
