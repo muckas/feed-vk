@@ -4,6 +4,8 @@ import vk_api
 import telegram
 import logging
 from contextlib import suppress
+import telegram.ext
+from telegram.ext import CommandHandler
 import db
 
 # Logger setup
@@ -76,7 +78,28 @@ log.info('Connected to telegram')
 #   else:
 #     tg.send_message(chat_id=tg_userid, text=msg_text)
 
+help_text = '''
+Отправь ссылку на группу или человека в VK, чтобы подписаться на ленту
+/feed - показать список всех активных лент
+/remove <номер> - прекратить получать оповещения о постах, номер ленты можно узнать командой /feed
+'''
+
+def help_command(update, context):
+  if whitelisted(update.message.chat['id']):
+    update.message.reply_text(help_text)
+
+def whitelisted(userid):
+  setting = db.read()
+  if userid in settings['whitelist']:
+    return True
+  else:
+    tg.send_message(chat_id = userid, text = f'Опа, а я тебя не знаю!\nТвой id - {userid}')
+    return False
+
 if __name__ == '__main__':
   settings = db.init()
-  print(settings)
-  db.write(settings)
+  updater = telegram.ext.Updater(tg_token)
+  dispatcher = updater.dispatcher
+  dispatcher.add_handler(CommandHandler('help', help_command))
+  updater.start_polling()
+  updater.idle()
