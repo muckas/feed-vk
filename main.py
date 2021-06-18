@@ -107,11 +107,23 @@ def add_feed(update, context):
       if domain in settings['users'][user_id]:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
-        settings['users'][user_id].update({domain:{'post_id':0}})
+        settings['users'][user_id].update({domain:{'post_id':0, 'name':name}})
         db.write(settings)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
+    except vk_api.exceptions.ApiError:
+      path, domain = url.split('https://vk.com/')
+      user = vk.users.get(user_ids=domain)
+      name = user[0]['first_name'] + ' ' + user[0]['last_name']
+      if user_id not in settings['users']:
+        settings['users'].update({user_id:{}})
+      if domain in settings['users'][user_id]:
+        update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
+      else:
+        settings['users'][user_id].update({domain:{'post_id':0, 'name':name}})
+        db.write(settings)
+        update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
     except ValueError:
-      update.message.reply_text('Неверная ссылка')
+      update.message.reply_text('Некорректная ссылка')
 
 
 def whitelisted(userid):
