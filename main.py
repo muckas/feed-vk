@@ -83,7 +83,7 @@ help_text = '''
 Я буду слать тебе посты со стен групп или людей в VK
 Отправь ссылку на группу или человека в VK, чтобы подписаться на ленту
 /feed - показать список всех активных лент
-/remove <номер> - удалить ленту, номер ленты можно узнать командой /feed
+/remove <ссылка на ленту> - удалить ленту, ссылку на ленту можно узнать командой /feed
 '''
 
 def start_command(update, context):
@@ -107,7 +107,7 @@ def add_feed(update, context):
       if domain in settings['users'][user_id]:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
-        settings['users'][user_id].update({domain:{'post_id':0, 'name':name}})
+        settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
         db.write(settings)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError:
@@ -140,6 +140,25 @@ def show_feed(update, context):
         i += 1
       update.message.reply_text(msg)
 
+def remove_from_feed(update, context):
+  if whitelisted(update.message.chat['id']):
+    user_id = str(update.message.chat['id'])
+    settings = db.read()
+    try:
+      url = str(context.args[0])
+      start, domain = url.split('https://vk.com/')
+      if domain in settings['users'][user_id]:
+        name = settings['users'][user_id][domain]['name']
+        settings['users'][user_id].pop(domain)
+        db.write(settings)
+        update.message.reply_text(f'"{name}" удалено из ленты')
+      else:
+        update.message.reply_text('Такого в ленте нет')
+        show_feed(update, context)
+    except (IndexError, ValueError):
+      update.message.reply_text('/remove <ссылка на ленту>')
+      show_feed(update, context)
+
 
 def whitelisted(userid):
   settings = db.read()
@@ -161,6 +180,7 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('help', help_command))
     dispatcher.add_handler(CommandHandler('start', start_command))
     dispatcher.add_handler(CommandHandler('feed', show_feed))
+    dispatcher.add_handler(CommandHandler('remove', remove_from_feed))
     updater.start_polling()
     updater.idle()
   except Exception as e:
