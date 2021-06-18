@@ -1,5 +1,6 @@
 /logs
 /venv
+/db
 *.swp
 *.db
 vk_config.v2.json
