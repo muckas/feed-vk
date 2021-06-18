@@ -95,7 +95,7 @@ def help_command(update, context):
 
 def add_feed(update, context):
   if whitelisted(update.message.chat['id']):
-    user_id = update.message.chat['id']
+    user_id = str(update.message.chat['id'])
     url = update.message.text
     settings = db.read()
     try:
@@ -125,6 +125,21 @@ def add_feed(update, context):
     except ValueError:
       update.message.reply_text('Некорректная ссылка')
 
+def show_feed(update, context):
+  if whitelisted(update.message.chat['id']):
+    user_id = str(update.message.chat['id'])
+    settings = db.read()
+    if len(settings['users'][user_id]) == 0:
+      update.message.reply_text('Лента пуста')
+    else:
+      msg = 'Текущая лента:'
+      i = 1
+      for group in settings['users'][user_id]:
+        print(group)
+        msg += f'\n{i}: {settings["users"][user_id][group]["name"]} https://vk.com/{group}'
+        i += 1
+      update.message.reply_text(msg)
+
 
 def whitelisted(userid):
   settings = db.read()
@@ -145,6 +160,7 @@ if __name__ == '__main__':
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
     dispatcher.add_handler(CommandHandler('help', help_command))
     dispatcher.add_handler(CommandHandler('start', start_command))
+    dispatcher.add_handler(CommandHandler('feed', show_feed))
     updater.start_polling()
     updater.idle()
   except Exception as e:
