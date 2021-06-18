@@ -107,6 +107,8 @@ def add_feed(update, context):
       if domain in settings['users'][user_id]:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
+        posts = vk.wall.get(domain=domain, count=1)['items']
+        last_id = posts[0]['id']
         settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
         db.write(settings)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
@@ -119,7 +121,9 @@ def add_feed(update, context):
       if domain in settings['users'][user_id]:
         update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
       else:
-        settings['users'][user_id].update({domain:{'post_id':0, 'name':name}})
+        posts = vk.wall.get(domain=domain, count=1)['items']
+        last_id = posts[0]['id']
+        settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
         db.write(settings)
         update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
     except ValueError:
@@ -151,7 +155,7 @@ def remove_from_feed(update, context):
         name = settings['users'][user_id][domain]['name']
         settings['users'][user_id].pop(domain)
         db.write(settings)
-        update.message.reply_text(f'"{name}" удалено из ленты')
+        update.message.reply_text(f'"{name}" больше не в ленте')
       else:
         update.message.reply_text('Такого в ленте нет')
         show_feed(update, context)
