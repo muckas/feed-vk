@@ -1,17 +1,46 @@
 import os
+import datetime
 import vk_api
 import telegram
+import logging
+from contextlib import suppress
+
+# Logger setup
+with suppress(FileExistsError):
+  os.makedirs('logs')
+  print('Created logs folder')
+
+log = logging.getLogger('')
+log.setLevel(logging.DEBUG)
+
+filename = datetime.datetime.now().strftime('%Y-%m-%d') + '.log'
+file = logging.FileHandler(os.path.join('logs', filename))
+file.setLevel(logging.DEBUG)
+fileformat = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
+file.setFormatter(fileformat)
+log.addHandler(file)
+
+stream = logging.StreamHandler()
+stream.setLevel(logging.DEBUG)
+streamformat = logging.Formatter('%(asctime)s:%(levelname)s: %(message)s')
+stream.setFormatter(fileformat)
+log.addHandler(stream)
+# End of logger setup
 
 vk_login = os.environ['VK_LOGIN']
 vk_password = os.environ['VK_PASSWORD']
 tg_token = os.environ['TG_TOKEN_TEST']
 tg_userid = os.environ['TG_USERID']
 
+log.info('Connecting to vk...')
 vk_session = vk_api.VkApi(vk_login , vk_password)
 vk_session.auth()
 vk = vk_session.get_api()
+log.info('Connected to vk')
 
+log.info('Connecting to telegram...')
 tg = telegram.Bot(tg_token)
+log.info('Connected to telegram')
 
 posts = vk.wall.get(domain='fest', count=1)['items']
 
