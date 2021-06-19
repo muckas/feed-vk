@@ -9,6 +9,7 @@ import telegram.ext
 from telegram.ext import CommandHandler, MessageHandler, Filters
 import db
 import traceback
+from retry import retry
 
 # Logger setup
 with suppress(FileExistsError):
@@ -52,12 +53,12 @@ tg = telegram.Bot(tg_token)
 tg.get_me()
 log.info('Connected to telegram')
 
-def send_post(user_id, post, poster_name):
+def send_post(user_id, post, poster_name, domain):
   msg_text = ''
   msg_attachments = []
   post_id = post['id']
   post_text = post['text']
-  msg_text = post_text + '\n----------------------------\n' + poster_name
+  msg_text = post_text + '\n----------------------------\n' + poster_name + '\nhttps://vk.com/' + domain
   if 'attachments' in post.keys():
     attachments = post['attachments']
     for attachment in attachments:
@@ -106,8 +107,8 @@ def add_feed(update, context):
       if domain in settings['users'][user_id]:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
-        posts = vk.wall.get(domain=domain, count=1)['items']
-        last_id = posts[0]['id']
+        posts = vk.wall.get(domain=domain, count=2)['items']
+        last_id = posts[1]['id']
         settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
         db.write(settings)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
@@ -174,6 +175,7 @@ def whitelisted(userid):
   else:
     return True
 
+@retry(exceptions=Exception, tries=-1, delay=0)
 def mainloop():
   while True:
     log.info('Started posts update...')
@@ -182,12 +184,12 @@ def mainloop():
       for domain in settings['users'][user]:
         last_post_id = settings['users'][user][domain]['post_id']
         name = settings['users'][user][domain]['name']
-        posts = vk.wall.get(domain=domain, count=10)['items']
+        posts = vk.wall.get(domain=domain, count=50)['items']
         posts.reverse()
         for post in posts:
           if post['id'] > last_post_id:
             log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
-            send_post(user, post, name)
+            send_post(user, post, name, domain)
             last_post_id = post['id']
             settings['users'][user][domain]['post_id'] = last_post_id
             db.write(settings)
