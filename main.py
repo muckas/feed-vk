@@ -38,11 +38,11 @@ with suppress(FileExistsError):
   log.info('Created db folder')
 
 vk_login = os.environ['VK_LOGIN']
-vk_password = os.environ['VK_PASSWORD']
+vk_token = os.environ['VK_TOKEN']
 tg_token = os.environ['TG_VKFEED_TOKEN']
 
 log.info('Connecting to vk...')
-vk_session = vk_api.VkApi(vk_login , vk_password)
+vk_session = vk_api.VkApi(login=vk_login, token=vk_token)
 vk_session.auth()
 vk = vk_session.get_api()
 log.info('Connected to vk')
