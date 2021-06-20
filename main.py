@@ -40,7 +40,6 @@ with suppress(FileExistsError):
 vk_login = os.environ['VK_LOGIN']
 vk_password = os.environ['VK_PASSWORD']
 tg_token = os.environ['TG_VKFEED_TOKEN']
-tg_userid = os.environ['TG_USERID']
 
 log.info('Connecting to vk...')
 vk_session = vk_api.VkApi(vk_login , vk_password)
@@ -73,11 +72,11 @@ def send_post(user_id, post, poster_name, domain):
         msg_photos.append(telegram.InputMediaPhoto(media=photo, caption=msg_text))
       else:
         msg_photos.append(telegram.InputMediaPhoto(media=photo))
-    tg.sendMediaGroup(chat_id=tg_userid, media=msg_photos)
+    tg.sendMediaGroup(chat_id=user_id, media=msg_photos)
   elif len(msg_attachments) == 1:
-    tg.send_photo(chat_id=tg_userid, photo=msg_attachments[0], caption=msg_text)
+    tg.send_photo(chat_id=user_id, photo=msg_attachments[0], caption=msg_text)
   else:
-    tg.send_message(chat_id=tg_userid, text=msg_text)
+    tg.send_message(chat_id=user_id, text=msg_text)
 
 help_text = '''
 Я буду слать тебе посты со стен групп или людей в VK
