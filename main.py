@@ -65,6 +65,8 @@ def send_post(user_id, post, poster_name, domain):
         sizes = attachment['photo']['sizes']
         photo = sorted(sizes, key = lambda item: item['height'])[-1]
         msg_attachments.append(photo['url'])
+  if len(msg_text) > 4096:
+    msg_text = '* В посте слишком много текста для отправки в Telegram *'
   if len(msg_attachments) > 1:
     msg_photos = []
     for photo in msg_attachments:
@@ -174,7 +176,7 @@ def whitelisted(userid):
   else:
     return True
 
-@retry(exceptions=Exception, tries=-1, delay=0)
+# @retry(exceptions=Exception, tries=-1, delay=0)
 def mainloop():
   while True:
     log.info('Started posts update...')
