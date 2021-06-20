@@ -176,15 +176,17 @@ def whitelisted(userid):
   else:
     return True
 
-# @retry(exceptions=Exception, tries=-1, delay=0)
+@retry(exceptions=Exception, tries=-1, delay=60)
 def mainloop():
   while True:
     log.info('Started posts update...')
     settings = db.read()
     for user in settings['users']:
+      log.info(f'Checking posts for user {user}...')
       for domain in settings['users'][user]:
         last_post_id = settings['users'][user][domain]['post_id']
         name = settings['users'][user][domain]['name']
+        log.info(f'Checking {name} ({domain})...')
         posts = vk.wall.get(domain=domain, count=50)['items']
         posts.reverse()
         for post in posts:
@@ -195,6 +197,7 @@ def mainloop():
             settings['users'][user][domain]['post_id'] = last_post_id
             db.write(settings)
     update_period = settings['params']['update_period']
+    log.info('Finished posts update')
     log.info(f'Sleeping for {update_period} seconds...')
     time.sleep(update_period)
 
