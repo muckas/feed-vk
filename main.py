@@ -124,7 +124,8 @@ def add_feed(update, context):
         users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
-    except vk_api.exceptions.ApiError:
+    except vk_api.exceptions.ApiError as e:
+      log.debug(f'Got {e} exception, handling...')
       path, domain = url.split('https://vk.com/')
       user = vk.users.get(user_ids=domain)
       name = user[0]['first_name'] + ' ' + user[0]['last_name']
@@ -133,8 +134,8 @@ def add_feed(update, context):
       if domain in users[user_id]['feeds']:
         update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
       else:
-        posts = vk.wall.get(domain=domain, count=1)['items']
-        last_id = posts[0]['id']
+        posts = vk.wall.get(domain=domain, count=2)['items']
+        last_id = posts[1]['id']
         users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
         db.write('users', users)
         update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
@@ -219,11 +220,8 @@ def mainloop():
 if __name__ == '__main__':
   try:
     db.init('users')
-    log.info('Initialized users')
     db.init('params')
-    log.info('Initialized params')
     db.init('whitelist')
-    log.info('Initialized whitelist')
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
