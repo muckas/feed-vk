@@ -67,7 +67,7 @@ def send_post(user_id, post, poster_name, domain):
         msg_attachments.append(photo['url'])
   if len(msg_attachments) > 1:
     if len(msg_text) > 1024:
-      msg_text = '* В посте слишком много текста для отправки в Telegram *'
+      msg_text = msg_text[:-100] + '...\n* В посте слишком много текста для отправки в Telegram *'
     msg_photos = []
     for photo in msg_attachments:
       if photo is msg_attachments[0]:
@@ -77,11 +77,11 @@ def send_post(user_id, post, poster_name, domain):
     tg.sendMediaGroup(chat_id=user_id, media=msg_photos)
   elif len(msg_attachments) == 1:
     if len(msg_text) > 1024:
-      msg_text = '* В посте слишком много текста для отправки в Telegram *'
+      msg_text = msg_text[:-100] + '...\n* В посте слишком много текста для отправки в Telegram *'
     tg.send_photo(chat_id=user_id, photo=msg_attachments[0], caption=msg_text)
   else:
     if len(msg_text) > 4096:
-      msg_text = '* В посте слишком много текста для отправки в Telegram *'
+      msg_text = msg_text[:-100] + '...\n* В посте слишком много текста для отправки в Telegram *'
     tg.send_message(chat_id=user_id, text=msg_text)
 
 help_text = '''
@@ -95,7 +95,9 @@ def start_command(update, context):
   user_id = str(update.message.chat['id'])
   users = db.read('users')
   if user_id not in users:
-    users.update({user_id:{}})
+    chat = tg.getChat(user)
+    username = chat['username']
+    users.update({user_id:{'username':username}})
     db.write('users', users)
   help_command(update, context)
 
@@ -114,12 +116,12 @@ def add_feed(update, context):
       name = group[0]['name']
       if user_id not in users:
         users.update({user_id:{}})
-      if domain in users[user_id]:
+      if domain in users[user_id]['feeds']:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(domain=domain, count=2)['items']
         last_id = posts[1]['id']
-        users[user_id].update({domain:{'post_id':last_id, 'name':name}})
+        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError:
@@ -128,12 +130,12 @@ def add_feed(update, context):
       name = user[0]['first_name'] + ' ' + user[0]['last_name']
       if user_id not in users:
         users.update({user_id:{}})
-      if domain in users[user_id]:
+      if domain in users[user_id]['feeds']:
         update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(domain=domain, count=1)['items']
         last_id = posts[0]['id']
-        users[user_id].update({domain:{'post_id':last_id, 'name':name}})
+        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
         db.write('users', users)
         update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
     except ValueError:
@@ -143,13 +145,13 @@ def show_feed(update, context):
   if whitelisted(update.message.chat['id']):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
-    if len(users[user_id]) == 0:
+    if len(users[user_id]['feeds']) == 0:
       update.message.reply_text('Лента пуста')
     else:
       msg = 'Текущая лента:'
       i = 1
-      for group in users[user_id]:
-        msg += f'\n{i}: {users[user_id][group]["name"]} https://vk.com/{group}'
+      for feed in users[user_id]['feeds']:
+        msg += f'\n{i}: {users[user_id]["feeds"][{feed}]["name"]} https://vk.com/{group}'
         i += 1
       update.message.reply_text(msg)
 
@@ -160,9 +162,9 @@ def remove_from_feed(update, context):
     try:
       url = str(context.args[0])
       start, domain = url.split('https://vk.com/')
-      if domain in users[user_id]:
-        name = users[user_id][domain]['name']
-        users[user_id].pop(domain)
+      if domain in users[user_id]['feeds']:
+        name = users[user_id]['feeds'][domain]['name']
+        users[user_id]['feeds'].pop(domain)
         db.write('users', users)
         update.message.reply_text(f'"{name}" больше не в ленте')
       else:
@@ -193,9 +195,9 @@ def mainloop():
       params = db.read('params')
       for user in users:
         log.info(f'Checking posts for user {user}...')
-        for domain in users[user]:
-          last_post_id = users[user][domain]['post_id']
-          name = users[user][domain]['name']
+        for domain in users[user]['feeds']:
+          last_post_id = users[user]['feeds'][domain]['post_id']
+          name = users[user]['feeds'][domain]['name']
           log.info(f'Checking {name} ({domain})...')
           posts = vk.wall.get(domain=domain, count=50)['items']
           posts.reverse()
@@ -204,7 +206,7 @@ def mainloop():
               log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
               send_post(user, post, name, domain)
               last_post_id = post['id']
-              users[user][domain]['post_id'] = last_post_id
+              users[user]['feeds'][domain]['post_id'] = last_post_id
               db.write('users', users)
       update_period = params['update_period']
       log.info('Finished posts update')
