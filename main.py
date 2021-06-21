@@ -81,30 +81,28 @@ def add_feed(update, context):
     try:
       path, domain = url.split('https://vk.com/')
       group = vk.groups.getById(group_id=domain, fields='name')
+      vk_id = int(group[0]['id']) * -1
       name = group[0]['name']
-      if user_id not in users:
-        users.update({user_id:{}})
       if domain in users[user_id]['feeds']:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
-        posts = vk.wall.get(domain=domain, count=2)['items']
+        posts = vk.wall.get(owner_id=vk_id, count=2)['items']
         last_id = posts[1]['id']
-        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
+        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError as e:
       log.debug(f'Got {e} exception, handling...')
       path, domain = url.split('https://vk.com/')
       user = vk.users.get(user_ids=domain)
+      vk_id = int(user[0]['id'])
       name = user[0]['first_name'] + ' ' + user[0]['last_name']
-      if user_id not in users:
-        users.update({user_id:{}})
       if domain in users[user_id]['feeds']:
         update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
       else:
-        posts = vk.wall.get(domain=domain, count=2)['items']
+        posts = vk.wall.get(owner_id=vk_id, count=2)['items']
         last_id = posts[1]['id']
-        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name}})
+        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
         db.write('users', users)
         update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
     except ValueError:
@@ -167,13 +165,14 @@ def mainloop():
         for domain in users[user]['feeds']:
           last_post_id = users[user]['feeds'][domain]['post_id']
           name = users[user]['feeds'][domain]['name']
+          vk_id = users[user]['feeds'][domain]['id']
           log.info(f'Checking {name} ({domain})...')
-          posts = vk.wall.get(domain=domain, count=50)['items']
+          posts = vk.wall.get(owner_id=vk_id, count=50)['items']
           posts.reverse()
           for post in posts:
             if post['id'] > last_post_id:
               log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
-              vk_posts.send(tg, user, post, name, domain)
+              vk_posts.send(tg, user, post, name, domain, vk_id, post['id'])
               last_post_id = post['id']
               users[user]['feeds'][domain]['post_id'] = last_post_id
               db.write('users', users)
