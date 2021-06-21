@@ -38,11 +38,11 @@ with suppress(FileExistsError):
   log.info('Created db folder')
 
 vk_login = os.environ['VK_LOGIN']
-vk_token = os.environ['VK_TOKEN']
+vk_password = os.environ['VK_PASSWORD']
 tg_token = os.environ['TG_VKFEED_TOKEN']
 
 log.info('Connecting to vk...')
-vk_session = vk_api.VkApi(login=vk_login, token=vk_token)
+vk_session = vk_api.VkApi(login=vk_login, password=vk_password, api_version='5.130')
 vk_session.auth()
 vk = vk_session.get_api()
 log.info('Connected to vk')
@@ -80,7 +80,7 @@ def add_feed(update, context):
     users = db.read('users')
     try:
       path, domain = url.split('https://vk.com/')
-      group = vk.groups.getById(group_id=domain, fields='name')
+      group = vk.groups.getById(group_id=domain)
       vk_id = int(group[0]['id']) * -1
       name = group[0]['name']
       if domain in users[user_id]['feeds']:
@@ -177,7 +177,7 @@ def mainloop():
             for post in posts:
               if post['id'] > last_post_id:
                 log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
-                vk_posts.send(tg, user, post, name, domain, vk_id, post['id'])
+                vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
                 last_post_id = post['id']
                 users[user]['feeds'][domain]['post_id'] = last_post_id
                 db.write('users', users)
