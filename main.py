@@ -151,8 +151,9 @@ def show_feed(update, context):
     else:
       msg = 'Текущая лента:'
       i = 1
-      for feed in users[user_id]['feeds']:
-        msg += f'\n{i}: {users[user_id]["feeds"][{feed}]["name"]} https://vk.com/{group}'
+      for domain in users[user_id]['feeds']:
+        name = users[user_id]['feeds'][domain]['name']
+        msg += f'\n{i}: {name} https://vk.com/{domain}'
         i += 1
       update.message.reply_text(msg)
 
@@ -204,7 +205,7 @@ def mainloop():
           posts.reverse()
           for post in posts:
             if post['id'] > last_post_id:
-              log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
+              log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
               send_post(user, post, name, domain)
               last_post_id = post['id']
               users[user]['feeds'][domain]['post_id'] = last_post_id
