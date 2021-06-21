@@ -65,9 +65,9 @@ def send_post(user_id, post, poster_name, domain):
         sizes = attachment['photo']['sizes']
         photo = sorted(sizes, key = lambda item: item['height'])[-1]
         msg_attachments.append(photo['url'])
-  if len(msg_text) > 4096:
-    msg_text = '* В посте слишком много текста для отправки в Telegram *'
   if len(msg_attachments) > 1:
+    if len(msg_text) > 1024:
+      msg_text = '* В посте слишком много текста для отправки в Telegram *'
     msg_photos = []
     for photo in msg_attachments:
       if photo is msg_attachments[0]:
@@ -76,8 +76,12 @@ def send_post(user_id, post, poster_name, domain):
         msg_photos.append(telegram.InputMediaPhoto(media=photo))
     tg.sendMediaGroup(chat_id=user_id, media=msg_photos)
   elif len(msg_attachments) == 1:
+    if len(msg_text) > 1024:
+      msg_text = '* В посте слишком много текста для отправки в Telegram *'
     tg.send_photo(chat_id=user_id, photo=msg_attachments[0], caption=msg_text)
   else:
+    if len(msg_text) > 4096:
+      msg_text = '* В посте слишком много текста для отправки в Telegram *'
     tg.send_message(chat_id=user_id, text=msg_text)
 
 help_text = '''
@@ -88,6 +92,11 @@ help_text = '''
 '''
 
 def start_command(update, context):
+  user_id = str(update.message.chat['id'])
+  users = db.read('users')
+  if user_id not in users:
+    users.update({user_id:{}})
+    db.write('users', users)
   help_command(update, context)
 
 def help_command(update, context):
@@ -98,34 +107,34 @@ def add_feed(update, context):
   if whitelisted(update.message.chat['id']):
     user_id = str(update.message.chat['id'])
     url = update.message.text
-    settings = db.read()
+    users = db.read('users')
     try:
       path, domain = url.split('https://vk.com/')
       group = vk.groups.getById(group_id=domain, fields='name')
       name = group[0]['name']
-      if user_id not in settings['users']:
-        settings['users'].update({user_id:{}})
-      if domain in settings['users'][user_id]:
+      if user_id not in users:
+        users.update({user_id:{}})
+      if domain in users[user_id]:
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(domain=domain, count=2)['items']
         last_id = posts[1]['id']
-        settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
-        db.write(settings)
+        users[user_id].update({domain:{'post_id':last_id, 'name':name}})
+        db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError:
       path, domain = url.split('https://vk.com/')
       user = vk.users.get(user_ids=domain)
       name = user[0]['first_name'] + ' ' + user[0]['last_name']
-      if user_id not in settings['users']:
-        settings['users'].update({user_id:{}})
-      if domain in settings['users'][user_id]:
+      if user_id not in users:
+        users.update({user_id:{}})
+      if domain in users[user_id]:
         update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(domain=domain, count=1)['items']
         last_id = posts[0]['id']
-        settings['users'][user_id].update({domain:{'post_id':last_id, 'name':name}})
-        db.write(settings)
+        users[user_id].update({domain:{'post_id':last_id, 'name':name}})
+        db.write('users', users)
         update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
     except ValueError:
       update.message.reply_text('Некорректная ссылка')
@@ -133,29 +142,28 @@ def add_feed(update, context):
 def show_feed(update, context):
   if whitelisted(update.message.chat['id']):
     user_id = str(update.message.chat['id'])
-    settings = db.read()
-    if len(settings['users'][user_id]) == 0:
+    users = db.read('users')
+    if len(users[user_id]) == 0:
       update.message.reply_text('Лента пуста')
     else:
       msg = 'Текущая лента:'
       i = 1
-      for group in settings['users'][user_id]:
-        print(group)
-        msg += f'\n{i}: {settings["users"][user_id][group]["name"]} https://vk.com/{group}'
+      for group in users[user_id]:
+        msg += f'\n{i}: {users[user_id][group]["name"]} https://vk.com/{group}'
         i += 1
       update.message.reply_text(msg)
 
 def remove_from_feed(update, context):
   if whitelisted(update.message.chat['id']):
     user_id = str(update.message.chat['id'])
-    settings = db.read()
+    users = db.read('users')
     try:
       url = str(context.args[0])
       start, domain = url.split('https://vk.com/')
-      if domain in settings['users'][user_id]:
-        name = settings['users'][user_id][domain]['name']
-        settings['users'][user_id].pop(domain)
-        db.write(settings)
+      if domain in users[user_id]:
+        name = users[user_id][domain]['name']
+        users[user_id].pop(domain)
+        db.write('users', users)
         update.message.reply_text(f'"{name}" больше не в ленте')
       else:
         update.message.reply_text('Такого в ленте нет')
@@ -165,45 +173,55 @@ def remove_from_feed(update, context):
       show_feed(update, context)
 
 
-def whitelisted(userid):
-  settings = db.read()
-  if settings['params']['use_whitelist']:
-    if userid in settings['whitelist']:
+def whitelisted(user_id):
+  whitelist = db.read('whitelist')
+  if db.read('params')['use_whitelist']:
+    if user_id in whitelist:
       return True
     else:
-      tg.send_message(chat_id = userid, text = f'Опа, а я тебя не знаю!\nТвой id - {userid}')
+      tg.send_message(chat_id = user_id, text = f'Опа, а я тебя не знаю!\nТвой id - {user_id}')
       return False
   else:
     return True
 
-@retry(exceptions=Exception, tries=-1, delay=60)
+# @retry(exceptions=Exception, tries=-1, delay=60)
 def mainloop():
-  while True:
-    log.info('Started posts update...')
-    settings = db.read()
-    for user in settings['users']:
-      log.info(f'Checking posts for user {user}...')
-      for domain in settings['users'][user]:
-        last_post_id = settings['users'][user][domain]['post_id']
-        name = settings['users'][user][domain]['name']
-        log.info(f'Checking {name} ({domain})...')
-        posts = vk.wall.get(domain=domain, count=50)['items']
-        posts.reverse()
-        for post in posts:
-          if post['id'] > last_post_id:
-            log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
-            send_post(user, post, name, domain)
-            last_post_id = post['id']
-            settings['users'][user][domain]['post_id'] = last_post_id
-            db.write(settings)
-    update_period = settings['params']['update_period']
-    log.info('Finished posts update')
-    log.info(f'Sleeping for {update_period} seconds...')
-    time.sleep(update_period)
+  try:
+    while True:
+      log.info('Started posts update...')
+      users = db.read('users')
+      params = db.read('params')
+      for user in users:
+        log.info(f'Checking posts for user {user}...')
+        for domain in users[user]:
+          last_post_id = users[user][domain]['post_id']
+          name = users[user][domain]['name']
+          log.info(f'Checking {name} ({domain})...')
+          posts = vk.wall.get(domain=domain, count=50)['items']
+          posts.reverse()
+          for post in posts:
+            if post['id'] > last_post_id:
+              log.info(f'New post from {name} ({domain}) with id {post["id"]} for user {user}')
+              send_post(user, post, name, domain)
+              last_post_id = post['id']
+              users[user][domain]['post_id'] = last_post_id
+              db.write('users', users)
+      update_period = params['update_period']
+      log.info('Finished posts update')
+      log.info(f'Sleeping for {update_period} seconds...')
+      time.sleep(update_period)
+  except Exception as e:
+    log.error((traceback.format_exc()))
+    return 0
 
 if __name__ == '__main__':
   try:
-    db.init()
+    db.init('users')
+    log.info('Initialized users')
+    db.init('params')
+    log.info('Initialized params')
+    db.init('whitelist')
+    log.info('Initialized whitelist')
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
@@ -213,6 +231,7 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('remove', remove_from_feed))
     updater.start_polling()
     mainloop()
-    updater.idle()
+    log.error('Main thread ended, stopping updater...')
+    updater.stop()
   except Exception as e:
     log.error((traceback.format_exc()))

@@ -1,29 +1,22 @@
 import os
 import json
 
-def init():
+def init(name):
   try:
-    with open(os.path.join('db','db.json'), 'x') as f:
-      defaults = {
-          'params':{
-            'update_period':300,
-            'use_whitelist':False
-            },
-          'whitelist':[],
-          'users':{},
-          }
+    with open(os.path.join('db',f'{name}.json'), 'x') as f:
+      json_obj = {}
       json_obj = json.dumps(defaults, indent=2)
       f.write(json_obj)
-      return defaults
+    return read(name)
   except FileExistsError:
-    return read()
+    return read(name)
 
-def read():
-  with open(os.path.join('db','db.json'), 'r') as f:
-    settings = json.load(f)
-  return settings
+def read(name):
+  with open(os.path.join('db',f'{name}.json'), 'r') as f:
+    content = json.load(f)
+  return content
 
-def write(settings):
-  with open(os.path.join('db','db.json'), 'w') as f:
-    json_obj = json.dumps(settings, indent=2)
+def write(name, content):
+  with open(os.path.join('db',f'{name}.json'), 'w') as f:
+    json_obj = json.dumps(content, indent=2)
     f.write(json_obj)
