@@ -70,11 +70,11 @@ def start_command(update, context):
   help_command(update, context)
 
 def help_command(update, context):
-  if whitelisted(update.message.chat['id']):
+  if whitelisted(update.message.chat['id'], True):
     update.message.reply_text(help_text)
 
 def add_feed(update, context):
-  if whitelisted(update.message.chat['id']):
+  if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     url = update.message.text
     users = db.read('users')
@@ -109,7 +109,7 @@ def add_feed(update, context):
       update.message.reply_text('Некорректная ссылка')
 
 def show_feed(update, context):
-  if whitelisted(update.message.chat['id']):
+  if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
     if len(users[user_id]['feeds']) == 0:
@@ -124,7 +124,7 @@ def show_feed(update, context):
       update.message.reply_text(msg)
 
 def remove_from_feed(update, context):
-  if whitelisted(update.message.chat['id']):
+  if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
     try:
@@ -143,13 +143,16 @@ def remove_from_feed(update, context):
       show_feed(update, context)
 
 
-def whitelisted(user_id):
+def whitelisted(user_id, notify=False):
   whitelist = db.read('whitelist')
   if db.read('params')['use_whitelist']:
     if user_id in whitelist:
+      log.debug(f'User {user_id} whitelisted')
       return True
     else:
-      tg.send_message(chat_id = user_id, text = f'Опа, а я тебя не знаю!\nТвой id - {user_id}')
+      log.debug(f'User {user_id} not whitelisted')
+      if notify:
+        tg.send_message(chat_id = user_id, text = f'Опа, а я тебя не знаю!\nТвой id - {user_id}')
       return False
   else:
     return True
@@ -161,21 +164,23 @@ def mainloop():
       users = db.read('users')
       params = db.read('params')
       for user in users:
-        log.info(f'Checking posts for user {user}...')
-        for domain in users[user]['feeds']:
-          last_post_id = users[user]['feeds'][domain]['post_id']
-          name = users[user]['feeds'][domain]['name']
-          vk_id = users[user]['feeds'][domain]['id']
-          log.info(f'Checking {name} ({domain})...')
-          posts = vk.wall.get(owner_id=vk_id, count=50)['items']
-          posts.reverse()
-          for post in posts:
-            if post['id'] > last_post_id:
-              log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
-              vk_posts.send(tg, user, post, name, domain, vk_id, post['id'])
-              last_post_id = post['id']
-              users[user]['feeds'][domain]['post_id'] = last_post_id
-              db.write('users', users)
+        username = users[user]['username']
+        log.info(f'Checking posts for user @{username} {user}...')
+        if whitelisted(int(user)):
+          for domain in users[user]['feeds']:
+            last_post_id = users[user]['feeds'][domain]['post_id']
+            name = users[user]['feeds'][domain]['name']
+            vk_id = users[user]['feeds'][domain]['id']
+            log.info(f'Checking {name} ({domain})...')
+            posts = vk.wall.get(owner_id=vk_id, count=50)['items']
+            posts.reverse()
+            for post in posts:
+              if post['id'] > last_post_id:
+                log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
+                vk_posts.send(tg, user, post, name, domain, vk_id, post['id'])
+                last_post_id = post['id']
+                users[user]['feeds'][domain]['post_id'] = last_post_id
+                db.write('users', users)
       update_period = params['update_period']
       log.info('Finished posts update')
       log.info(f'Sleeping for {update_period} seconds...')
