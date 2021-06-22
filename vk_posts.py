@@ -93,22 +93,15 @@ def get_post(vk, post, poster_name, domain, feed_id):
 def send_post(vk, tg, user_id, post, poster_name, domain, feed_id):
   msg = get_post(vk, post, poster_name, domain, feed_id)
   msg_media = []
-  # if len(msg['gifs']) > 1:
-  #   for gif in msg['gifs']:
-  #     if gif is msg['gifs'][0]:
-  #       msg_media.append(InputMediaDocument(media=gif, caption=msg['text']))
-  #     else:
-  #       msg_media.append(InputMediaDocument(media=gif))
-  #   tg.sendMediaGroup(chat_id=user_id, media=msg_media)
   if len(msg['gifs']) == 1:
     tg.send_document(chat_id=user_id, document=msg['gifs'][0], caption=msg['text'])
   if len(msg['photos']) > 1:
     for photo in msg['photos']:
       if photo is msg['photos'][0]:
-        msg_media.append(InputMediaPhoto(media=gif, caption=msg['text']))
+        msg_media.append(InputMediaPhoto(media=photo, caption=msg['text']))
       else:
-        msg_media.append(InputMediaPhoto(media=gif))
-    tg.sendMediaPhoto(chat_id=user_id, media=msg_media)
+        msg_media.append(InputMediaPhoto(media=photo))
+    tg.sendMediaGroup(chat_id=user_id, media=msg_media)
   if len(msg['photos']) == 1:
     tg.send_photo(chat_id=user_id, photo=msg['photos'][0], caption=msg['text'])
   if not msg['photos'] and not msg['gifs']:
