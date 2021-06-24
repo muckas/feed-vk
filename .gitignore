@@ -1,7 +1,10 @@
 /logs
 /venv
+users.json
+params.json
+whitelist.json
 *.swp
-*.db
+*.swo
 vk_config.v2.json
 
 # Byte-compiled / optimized / DLL files
