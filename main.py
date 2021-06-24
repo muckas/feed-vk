@@ -188,9 +188,10 @@ def mainloop():
   except Exception as e:
     log.error((traceback.format_exc()))
     admin_id = db.read('params')['admin']
-    error_msg = f'VK Feed Bot closed with an exception'
-    tg.send_message(chat_id=admin_id, text = error_msg)
-    tg.send_message(chat_id=admin_id, text = traceback.format_exc())
+    if admin_id:
+      error_msg = 'VK Feed Bot stopped with an exception'
+      tg.send_message(chat_id=admin_id, text = error_msg)
+      tg.send_message(chat_id=admin_id, text = traceback.format_exc())
     return 0
 
 if __name__ == '__main__':
