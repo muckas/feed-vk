@@ -114,7 +114,7 @@ def get_post(vk, post, poster_name, domain, feed_id):
   post_msg = post_full + post_bottom_text
   msg_size = len(post_full + post_bottom_text)
   if msg_size > 1024 and ( post_photos or post_gifs ):
-    post_msg = post_full[:900] + post_size_warning + post_bottom_text
+    post_msg = post_full[:800] + post_size_warning + post_bottom_text
   if msg_size > 4096 and not post_photos and not post_gifs:
     post_msg = post_full[:3900] + post_size_warning + post_bottom_text
   return {'text':post_msg, 'photos':post_photos, 'gifs':post_gifs}
