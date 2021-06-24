@@ -43,6 +43,17 @@ def get_links(attachment, playlists, articles, links):
     links.append(f'Ссылка: {title}\n{url}')
   return playlists, articles, links,
 
+def get_sliced_messeges(text, bottom_text):
+  messeges = []
+  while True:
+    if len(text) + len(bottom_text) + 3 >= 4096:
+      messeges.append('...' + text[:4000] + '...')
+      text = text[4000:]
+    else:
+      messeges.append('...' + text + bottom_text)
+      break
+  return messeges
+
 def get_post(vk, post, poster_name, domain, feed_id):
   post_id = post['id']
   post_full = ''
@@ -69,6 +80,7 @@ def get_post(vk, post, poster_name, domain, feed_id):
   post_links = []
   post_gifs = []
   post_docs = []
+  post_long_text = []
   if 'attachments' in post.keys():
     attachments = post['attachments']
     for attachment in attachments:
@@ -91,7 +103,7 @@ def get_post(vk, post, poster_name, domain, feed_id):
         if doc[0] == 'gif':
           post_gifs.append(doc[1])
         else:
-          post_files.append(doc[1])
+          post_docs.append(doc[1])
   gif_count = len(post_gifs)
   if len(post_photos) != 0 and len(post_gifs) != 0:
     post_gifs = []
@@ -114,10 +126,12 @@ def get_post(vk, post, poster_name, domain, feed_id):
   post_msg = post_full + post_bottom_text
   msg_size = len(post_full + post_bottom_text)
   if msg_size > 1024 and ( post_photos or post_gifs ):
-    post_msg = post_full[:800] + post_size_warning + post_bottom_text
+    post_msg = post_full[:1000] +  '...'
+    post_long_text = get_sliced_messeges(post_full[1000:], post_bottom_text)
   if msg_size > 4096 and not post_photos and not post_gifs:
-    post_msg = post_full[:3900] + post_size_warning + post_bottom_text
-  return {'text':post_msg, 'photos':post_photos, 'gifs':post_gifs}
+    post_msg = post_full[:4000] + '...'
+    post_long_text = get_sliced_messeges(post_full[4000:], post_bottom_text)
+  return {'text':post_msg, 'photos':post_photos, 'gifs':post_gifs, 'long_text':post_long_text}
 
 def send_post(vk, tg, user_id, post, poster_name, domain, feed_id):
   msg = get_post(vk, post, poster_name, domain, feed_id)
@@ -135,3 +149,5 @@ def send_post(vk, tg, user_id, post, poster_name, domain, feed_id):
     tg.send_photo(chat_id=user_id, photo=msg['photos'][0], caption=msg['text'])
   if not msg['photos'] and not msg['gifs']:
     tg.send_message(chat_id=user_id, text=msg['text'])
+  for long_text in msg['long_text']:
+    tg.send_message(chat_id=user_id, text=long_text)
