@@ -33,6 +33,9 @@ stream.setFormatter(fileformat)
 log.addHandler(stream)
 # End of logger setup
 
+log.info('=============================')
+log.info('VK Feed bot start')
+
 with suppress(FileExistsError):
   os.makedirs('db')
   log.info('Created db folder')
@@ -197,8 +200,12 @@ def mainloop():
 if __name__ == '__main__':
   try:
     db.init('users')
-    db.init('params')
+    params = db.init('params')
     db.init('whitelist')
+    admin_id = params['admin']
+    if admin_id:
+      msg = f'''VK Feed Bot started'''
+      tg.send_message(chat_id=admin_id, text = msg)
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
