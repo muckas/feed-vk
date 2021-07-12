@@ -207,7 +207,7 @@ def mainloop():
       log.info(f'Sleeping for {update_period} seconds...')
       time.sleep(update_period)
   except Exception as e:
-    log.error((traceback.format_exc()))
+    log.error(traceback.format_exc())
     admin_id = db.read('params')['admin']
     if admin_id:
       error_msg = 'VK Feed Bot stopped with an exception'

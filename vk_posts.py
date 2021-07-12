@@ -1,6 +1,9 @@
 import logging
+import traceback
 import vk_api
+import telegram
 from telegram import InputMediaPhoto, InputMediaDocument
+import db
 
 log = logging.getLogger()
 
@@ -134,20 +137,29 @@ def get_post(vk, post, poster_name, domain, feed_id):
   return {'text':post_msg, 'photos':post_photos, 'gifs':post_gifs, 'long_text':post_long_text}
 
 def send_post(vk, tg, user_id, post, poster_name, domain, feed_id):
-  msg = get_post(vk, post, poster_name, domain, feed_id)
-  msg_media = []
-  if len(msg['gifs']) == 1:
-    tg.send_document(chat_id=user_id, document=msg['gifs'][0], caption=msg['text'])
-  if len(msg['photos']) > 1:
-    for photo in msg['photos']:
-      if photo is msg['photos'][0]:
-        msg_media.append(InputMediaPhoto(media=photo, caption=msg['text']))
-      else:
-        msg_media.append(InputMediaPhoto(media=photo))
-    tg.sendMediaGroup(chat_id=user_id, media=msg_media)
-  if len(msg['photos']) == 1:
-    tg.send_photo(chat_id=user_id, photo=msg['photos'][0], caption=msg['text'])
-  if not msg['photos'] and not msg['gifs']:
-    tg.send_message(chat_id=user_id, text=msg['text'])
-  for long_text in msg['long_text']:
-    tg.send_message(chat_id=user_id, text=long_text)
+  try:
+    msg = get_post(vk, post, poster_name, domain, feed_id)
+    msg_media = []
+    if len(msg['gifs']) == 1:
+      tg.send_document(chat_id=user_id, document=msg['gifs'][0], caption=msg['text'])
+    if len(msg['photos']) > 1:
+      for photo in msg['photos']:
+        if photo is msg['photos'][0]:
+          msg_media.append(InputMediaPhoto(media=photo, caption=msg['text']))
+        else:
+          msg_media.append(InputMediaPhoto(media=photo))
+      tg.sendMediaGroup(chat_id=user_id, media=msg_media)
+    if len(msg['photos']) == 1:
+      tg.send_photo(chat_id=user_id, photo=msg['photos'][0], caption=msg['text'])
+    if not msg['photos'] and not msg['gifs']:
+      tg.send_message(chat_id=user_id, text=msg['text'])
+    for long_text in msg['long_text']:
+      tg.send_message(chat_id=user_id, text=long_text)
+  except telegram.error.BadRequest as e:
+    error_msg = f'Handling exception {e}'
+    log.warning(error_msg)
+    log.warning(traceback.format_exc())
+    admin_id = db.read('params')['admin']
+    if admin_id:
+      tg.send_message(chat_id=admin_id, text = error_msg)
+      tg.send_message(chat_id=admin_id, text = traceback.format_exc())
