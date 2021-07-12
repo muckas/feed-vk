@@ -1,4 +1,6 @@
 import os
+import sys
+import getopt
 import time
 import datetime
 import vk_api
@@ -33,6 +35,17 @@ stream.setFormatter(fileformat)
 log.addHandler(stream)
 # End of logger setup
 
+tg_token = None
+
+try:
+  args, values = getopt.getopt(sys.argv[1:],"h",["tg-token="])
+  for arg, value in args:
+    if arg in ('--tg-token'):
+      tg_token = value
+except getopt.GetoptError:
+  print('-h, --tg-token')
+  sys.exit(2)
+
 log.info('=============================')
 log.info('VK Feed bot start')
 
@@ -40,20 +53,25 @@ with suppress(FileExistsError):
   os.makedirs('db')
   log.info('Created db folder')
 
-vk_login = os.environ['VK_LOGIN']
-vk_password = os.environ['VK_PASSWORD']
-tg_token = os.environ['TG_VKFEED_TOKEN']
+try:
+  vk_login = os.environ['VK_LOGIN']
+  vk_password = os.environ['VK_PASSWORD']
+  if not tg_token:
+    tg_token = os.environ['TG_TOKEN']
 
-log.info('Connecting to vk...')
-vk_session = vk_api.VkApi(login=vk_login, password=vk_password, api_version='5.130')
-vk_session.auth()
-vk = vk_session.get_api()
-log.info('Connected to vk')
+  log.info('Connecting to vk...')
+  vk_session = vk_api.VkApi(login=vk_login, password=vk_password, api_version='5.130')
+  vk_session.auth()
+  vk = vk_session.get_api()
+  log.info('Connected to vk')
 
-log.info('Connecting to telegram...')
-tg = telegram.Bot(tg_token)
-tg.get_me()
-log.info('Connected to telegram')
+  log.info('Connecting to telegram...')
+  tg = telegram.Bot(tg_token)
+  tg.get_me()
+  log.info('Connected to telegram')
+except Exception:
+  log.error(traceback.format_exc())
+  sys.exit(2)
 
 help_text = '''
 Я буду слать тебе посты со стен групп или людей в VK
@@ -189,7 +207,7 @@ def mainloop():
       log.info(f'Sleeping for {update_period} seconds...')
       time.sleep(update_period)
   except Exception as e:
-    log.error((traceback.format_exc()))
+    log.error(traceback.format_exc())
     admin_id = db.read('params')['admin']
     if admin_id:
       error_msg = 'VK Feed Bot stopped with an exception'
