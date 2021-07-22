@@ -74,7 +74,7 @@ def get_post(vk, post, poster_name, domain, feed_id):
     post = post['copy_history'][0]
     post_full += post['text']
   post_size_warning = '...\n* Пост слишком большой для Telegram *'
-  post_bottom_text = f'\n------------------------\n{poster_name}\nhttps://vk.com/wall{feed_id}_{post_id}'
+  post_bottom_text = f'\n------------------------\n{poster_name}\n#{domain}\nhttps://vk.com/wall{feed_id}_{post_id}'
   post_photos = []
   post_videos = []
   post_audios = []

@@ -140,7 +140,7 @@ def show_feed(update, context):
       i = 1
       for domain in users[user_id]['feeds']:
         name = users[user_id]['feeds'][domain]['name']
-        msg += f'\n{i}: {name} https://vk.com/{domain}'
+        msg += f'\n{i}: {name}\n#{domain}\nhttps://vk.com/{domain}'
         i += 1
       update.message.reply_text(msg)
 
