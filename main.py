@@ -13,6 +13,8 @@ import db
 import traceback
 import vk_posts
 
+VERSION = '0.8.0'
+
 # Logger setup
 with suppress(FileExistsError):
   os.makedirs('logs')
@@ -196,7 +198,7 @@ def mainloop():
             posts = vk.wall.get(owner_id=vk_id, count=50)['items']
             posts.reverse()
             for post in posts:
-              if post['id'] > last_post_id:
+              if post['id'] > last_post_id and post['date'] > params['start_date']:
                 log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
                 vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
                 last_post_id = post['id']
@@ -219,10 +221,18 @@ if __name__ == '__main__':
   try:
     db.init('users')
     params = db.init('params')
-    db.init('whitelist')
+    whitelist = db.init('whitelist')
     admin_id = params['admin']
     if admin_id:
-      msg = f'''VK Feed Bot started'''
+      msg = f'VK Feed v{VERSION}\n'
+      msg += f'Post start date: {params["start_date"]}\n'
+      msg += f'Update period: {params["update_period"]} sec\n'
+      if params['use_whitelist']:
+        msg += f'Whitelist enabled, users:'
+        for user in whitelist:
+          msg += f'\n  {user}'
+      else:
+        msg += f'Whitelist disabled'
       tg.send_message(chat_id=admin_id, text = msg)
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
