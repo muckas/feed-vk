@@ -196,7 +196,7 @@ def mainloop():
             posts = vk.wall.get(owner_id=vk_id, count=50)['items']
             posts.reverse()
             for post in posts:
-              if post['id'] > last_post_id:
+              if post['id'] > last_post_id and post['date'] > params['start_date']:
                 log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
                 vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
                 last_post_id = post['id']

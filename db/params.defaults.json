@@ -1,6 +1,7 @@
 {
 	"admin":false,
   "update_period": 900,
+	"start_date": 0,
   "use_whitelist": false
 }
 
