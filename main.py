@@ -13,6 +13,8 @@ import db
 import traceback
 import vk_posts
 
+VERSION = '0.8.0'
+
 # Logger setup
 with suppress(FileExistsError):
   os.makedirs('logs')
@@ -222,7 +224,7 @@ if __name__ == '__main__':
     whitelist = db.init('whitelist')
     admin_id = params['admin']
     if admin_id:
-      msg = f'VK Feed Bot started\n'
+      msg = f'VK Feed v{VERSION}\n'
       msg += f'Post start date: {params["start_date"]}\n'
       msg += f'Update period: {params["update_period"]} sec\n'
       if params['use_whitelist']:
