@@ -219,10 +219,18 @@ if __name__ == '__main__':
   try:
     db.init('users')
     params = db.init('params')
-    db.init('whitelist')
+    whitelist = db.init('whitelist')
     admin_id = params['admin']
     if admin_id:
-      msg = f'''VK Feed Bot started'''
+      msg = f'VK Feed Bot started\n'
+      msg += f'Post start date: {params["start_date"]}\n'
+      msg += f'Update period: {params["update_period"]} sec\n'
+      if params['use_whitelist']:
+        msg += f'Whitelist enabled, users:'
+        for user in whitelist:
+          msg += f'\n  {user}'
+      else:
+        msg += f'Whitelist disabled'
       tg.send_message(chat_id=admin_id, text = msg)
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
