@@ -123,19 +123,28 @@ def add_feed(update, context):
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError as e:
+      if str(e)[:4] == '[15]':
+        update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
+        return
       log.debug(f'Got {e} exception, handling...')
-      path, domain = url.split('https://vk.com/')
-      user = vk.users.get(user_ids=domain)
-      vk_id = int(user[0]['id'])
-      name = user[0]['first_name'] + ' ' + user[0]['last_name']
-      if domain in users[user_id]['feeds']:
-        update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
-      else:
-        posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-        last_id = posts[1]['id']
-        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
-        db.write('users', users)
-        update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
+      try:
+        path, domain = url.split('https://vk.com/')
+        user = vk.users.get(user_ids=domain)
+        vk_id = int(user[0]['id'])
+        name = user[0]['first_name'] + ' ' + user[0]['last_name']
+        if domain in users[user_id]['feeds']:
+          update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
+        else:
+          posts = vk.wall.get(owner_id=vk_id, count=2)['items']
+          last_id = posts[1]['id']
+          users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
+          db.write('users', users)
+          update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
+      except vk_api.exceptions.ApiError as e:
+        if str(e)[:4] == '[30]':
+          update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
+          return
+        log.debug(f'Got {e} exception, handling...')
     except ValueError:
       update.message.reply_text('Некорректная ссылка')
 
