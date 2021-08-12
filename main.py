@@ -49,7 +49,7 @@ except getopt.GetoptError:
   sys.exit(2)
 
 log.info('=============================')
-log.info('VK Feed bot start')
+log.info(f'VK Feed v{VERSION} start')
 
 with suppress(FileExistsError):
   os.makedirs('db')
