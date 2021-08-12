@@ -38,14 +38,20 @@ log.addHandler(stream)
 # End of logger setup
 
 tg_token = None
+vk_login = None
+vk_password = None
 
 try:
-  args, values = getopt.getopt(sys.argv[1:],"h",["tg-token="])
+  args, values = getopt.getopt(sys.argv[1:],"h",["tg-token=","vk-login=","vk-password="])
   for arg, value in args:
     if arg in ('--tg-token'):
       tg_token = value
+    if arg in ('--vk-login'):
+      vk_login = value
+    if arg in ('--vk-password'):
+      vk_password = value
 except getopt.GetoptError:
-  print('-h, --tg-token')
+  print('-h, --tg-token, --vk-login, --vk-password')
   sys.exit(2)
 
 log.info('=============================')
@@ -56,8 +62,10 @@ with suppress(FileExistsError):
   log.info('Created db folder')
 
 try:
-  vk_login = os.environ['VK_LOGIN']
-  vk_password = os.environ['VK_PASSWORD']
+  if not vk_login:
+    vk_login = os.environ['VK_LOGIN']
+  if not vk_password:
+    vk_password = os.environ['VK_PASSWORD']
   if not tg_token:
     tg_token = os.environ['TG_TOKEN']
 
