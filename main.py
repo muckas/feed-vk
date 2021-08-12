@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.8.0'
+VERSION = '0.9.0'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -82,14 +82,19 @@ help_text = '''
 /remove <ссылка на ленту> - удалить ленту, ссылку на ленту можно узнать командой /feed
 '''
 
+def add_user_to_db(user_id, update):
+  log.info(f'Adding new user {user_id} to database')
+  users = db.read('users')
+  tg_username = str(update.message.chat['username'])
+  users.update({user_id:{'username':tg_username, 'feeds':{}}})
+  db.write('users', users)
+  log.info(f'Added {tg_username} to database')
+
 def start_command(update, context):
   user_id = str(update.message.chat['id'])
   users = db.read('users')
   if user_id not in users:
-    chat = tg.getChat(user)
-    username = chat['username']
-    users.update({user_id:{'username':username}})
-    db.write('users', users)
+    add_user_to_db(user_id)
   help_command(update, context)
 
 def help_command(update, context):
@@ -101,6 +106,9 @@ def add_feed(update, context):
     user_id = str(update.message.chat['id'])
     url = update.message.text
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     try:
       path, domain = url.split('https://vk.com/')
       group = vk.groups.getById(group_id=domain)
@@ -135,6 +143,9 @@ def show_feed(update, context):
   if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     if len(users[user_id]['feeds']) == 0:
       update.message.reply_text('Лента пуста')
     else:
@@ -150,6 +161,9 @@ def remove_from_feed(update, context):
   if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     try:
       url = str(context.args[0])
       start, domain = url.split('https://vk.com/')
