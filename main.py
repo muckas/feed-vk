@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.0'
+VERSION = '0.9.1'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -84,7 +84,6 @@ except Exception:
   sys.exit(2)
 
 help_text = '''
-Я буду слать тебе посты со стен групп или людей в VK
 Отправь ссылку на группу или человека в VK, чтобы подписаться на ленту
 /feed - показать список всех активных лент
 /remove <ссылка на ленту> - удалить ленту, ссылку на ленту можно узнать командой /feed
@@ -134,6 +133,9 @@ def add_feed(update, context):
       if str(e)[:4] == '[15]':
         update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
         return
+      if str(e)[:5] == '[100]':
+        update.message.reply_text(f'Такой страницы не существует')
+        return
       log.debug(f'Got {e} exception, handling...')
       try:
         path, domain = url.split('https://vk.com/')
@@ -155,6 +157,7 @@ def add_feed(update, context):
         log.debug(f'Got {e} exception, handling...')
     except ValueError:
       update.message.reply_text('Некорректная ссылка')
+      help_command(update, context)
 
 def show_feed(update, context):
   if whitelisted(update.message.chat['id'], True):
