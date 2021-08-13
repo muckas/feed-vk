@@ -217,24 +217,30 @@ def mainloop():
       log.info('Started posts update...')
       users = db.read('users')
       params = db.read('params')
-      for user in users:
+      for user in users.copy():
         username = users[user]['username']
         log.info(f'Checking posts for user @{username} {user}...')
         if whitelisted(int(user)):
-          for domain in users[user]['feeds']:
-            last_post_id = users[user]['feeds'][domain]['post_id']
-            name = users[user]['feeds'][domain]['name']
-            vk_id = users[user]['feeds'][domain]['id']
-            log.info(f'Checking {name} ({domain})...')
-            posts = vk.wall.get(owner_id=vk_id, count=50)['items']
-            posts.reverse()
-            for post in posts:
-              if post['id'] > last_post_id and post['date'] > params['start_date']:
-                log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
-                vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
-                last_post_id = post['id']
-                users[user]['feeds'][domain]['post_id'] = last_post_id
-                db.write('users', users)
+          for domain in users.copy()[user]['feeds']:
+            try:
+              last_post_id = users[user]['feeds'][domain]['post_id']
+              name = users[user]['feeds'][domain]['name']
+              vk_id = users[user]['feeds'][domain]['id']
+              log.info(f'Checking {name} ({domain})...')
+              posts = vk.wall.get(owner_id=vk_id, count=50)['items']
+              posts.reverse()
+              for post in posts:
+                if post['id'] > last_post_id and post['date'] > params['start_date']:
+                  log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
+                  vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
+                  last_post_id = post['id']
+                  users[user]['feeds'][domain]['post_id'] = last_post_id
+                  db.write('users', users)
+            except vk_api.exceptions.ApiError as e:
+              if str(e)[:4] == '[15]' or str(e)[:4] == '[30]':
+                msg = f'Страница "{name}" приватная и не может быть в ленте\n'
+                msg += f'/remove https://vk.com/{domain} чтобы удалить из ленты'
+                tg.send_message(chat_id=user, text = msg)
       update_period = params['update_period']
       log.info('Finished posts update')
       log.info(f'Sleeping for {update_period} seconds...')
