@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.8.0'
+VERSION = '0.9.0'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -38,26 +38,34 @@ log.addHandler(stream)
 # End of logger setup
 
 tg_token = None
+vk_login = None
+vk_password = None
 
 try:
-  args, values = getopt.getopt(sys.argv[1:],"h",["tg-token="])
+  args, values = getopt.getopt(sys.argv[1:],"h",["tg-token=","vk-login=","vk-password="])
   for arg, value in args:
     if arg in ('--tg-token'):
       tg_token = value
+    if arg in ('--vk-login'):
+      vk_login = value
+    if arg in ('--vk-password'):
+      vk_password = value
 except getopt.GetoptError:
-  print('-h, --tg-token')
+  print('-h, --tg-token, --vk-login, --vk-password')
   sys.exit(2)
 
 log.info('=============================')
-log.info('VK Feed bot start')
+log.info(f'VK Feed v{VERSION} start')
 
 with suppress(FileExistsError):
   os.makedirs('db')
   log.info('Created db folder')
 
 try:
-  vk_login = os.environ['VK_LOGIN']
-  vk_password = os.environ['VK_PASSWORD']
+  if not vk_login:
+    vk_login = os.environ['VK_LOGIN']
+  if not vk_password:
+    vk_password = os.environ['VK_PASSWORD']
   if not tg_token:
     tg_token = os.environ['TG_TOKEN']
 
@@ -82,14 +90,19 @@ help_text = '''
 /remove <ссылка на ленту> - удалить ленту, ссылку на ленту можно узнать командой /feed
 '''
 
+def add_user_to_db(user_id, update):
+  log.info(f'Adding new user {user_id} to database')
+  users = db.read('users')
+  tg_username = str(update.message.chat['username'])
+  users.update({user_id:{'username':tg_username, 'feeds':{}}})
+  db.write('users', users)
+  log.info(f'Added {tg_username} to database')
+
 def start_command(update, context):
   user_id = str(update.message.chat['id'])
   users = db.read('users')
   if user_id not in users:
-    chat = tg.getChat(user)
-    username = chat['username']
-    users.update({user_id:{'username':username}})
-    db.write('users', users)
+    add_user_to_db(user_id)
   help_command(update, context)
 
 def help_command(update, context):
@@ -101,6 +114,9 @@ def add_feed(update, context):
     user_id = str(update.message.chat['id'])
     url = update.message.text
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     try:
       path, domain = url.split('https://vk.com/')
       group = vk.groups.getById(group_id=domain)
@@ -115,19 +131,28 @@ def add_feed(update, context):
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError as e:
+      if str(e)[:4] == '[15]':
+        update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
+        return
       log.debug(f'Got {e} exception, handling...')
-      path, domain = url.split('https://vk.com/')
-      user = vk.users.get(user_ids=domain)
-      vk_id = int(user[0]['id'])
-      name = user[0]['first_name'] + ' ' + user[0]['last_name']
-      if domain in users[user_id]['feeds']:
-        update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
-      else:
-        posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-        last_id = posts[1]['id']
-        users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
-        db.write('users', users)
-        update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
+      try:
+        path, domain = url.split('https://vk.com/')
+        user = vk.users.get(user_ids=domain)
+        vk_id = int(user[0]['id'])
+        name = user[0]['first_name'] + ' ' + user[0]['last_name']
+        if domain in users[user_id]['feeds']:
+          update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
+        else:
+          posts = vk.wall.get(owner_id=vk_id, count=2)['items']
+          last_id = posts[1]['id']
+          users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
+          db.write('users', users)
+          update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
+      except vk_api.exceptions.ApiError as e:
+        if str(e)[:4] == '[30]':
+          update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
+          return
+        log.debug(f'Got {e} exception, handling...')
     except ValueError:
       update.message.reply_text('Некорректная ссылка')
 
@@ -135,6 +160,9 @@ def show_feed(update, context):
   if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     if len(users[user_id]['feeds']) == 0:
       update.message.reply_text('Лента пуста')
     else:
@@ -150,6 +178,9 @@ def remove_from_feed(update, context):
   if whitelisted(update.message.chat['id'], True):
     user_id = str(update.message.chat['id'])
     users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
     try:
       url = str(context.args[0])
       start, domain = url.split('https://vk.com/')
@@ -186,24 +217,30 @@ def mainloop():
       log.info('Started posts update...')
       users = db.read('users')
       params = db.read('params')
-      for user in users:
+      for user in users.copy():
         username = users[user]['username']
         log.info(f'Checking posts for user @{username} {user}...')
         if whitelisted(int(user)):
-          for domain in users[user]['feeds']:
-            last_post_id = users[user]['feeds'][domain]['post_id']
-            name = users[user]['feeds'][domain]['name']
-            vk_id = users[user]['feeds'][domain]['id']
-            log.info(f'Checking {name} ({domain})...')
-            posts = vk.wall.get(owner_id=vk_id, count=50)['items']
-            posts.reverse()
-            for post in posts:
-              if post['id'] > last_post_id and post['date'] > params['start_date']:
-                log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
-                vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
-                last_post_id = post['id']
-                users[user]['feeds'][domain]['post_id'] = last_post_id
-                db.write('users', users)
+          for domain in users.copy()[user]['feeds']:
+            try:
+              last_post_id = users[user]['feeds'][domain]['post_id']
+              name = users[user]['feeds'][domain]['name']
+              vk_id = users[user]['feeds'][domain]['id']
+              log.info(f'Checking {name} ({domain})...')
+              posts = vk.wall.get(owner_id=vk_id, count=50)['items']
+              posts.reverse()
+              for post in posts:
+                if post['id'] > last_post_id and post['date'] > params['start_date']:
+                  log.info(f'New post from {name} ({domain}) with id {post["id"]} for user @{users[user]["username"]} ({user})')
+                  vk_posts.send_post(vk, tg, user, post, name, domain, vk_id)
+                  last_post_id = post['id']
+                  users[user]['feeds'][domain]['post_id'] = last_post_id
+                  db.write('users', users)
+            except vk_api.exceptions.ApiError as e:
+              if str(e)[:4] == '[15]' or str(e)[:4] == '[30]':
+                msg = f'Страница "{name}" приватная и не может быть в ленте\n'
+                msg += f'/remove https://vk.com/{domain} чтобы удалить из ленты'
+                tg.send_message(chat_id=user, text = msg)
       update_period = params['update_period']
       log.info('Finished posts update')
       log.info(f'Sleeping for {update_period} seconds...')
