@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.1'
+VERSION = '0.9.2'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -130,13 +130,10 @@ def add_feed(update, context):
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
     except vk_api.exceptions.ApiError as e:
+      log.debug(f'Got {e} exception, handling...')
       if str(e)[:4] == '[15]':
         update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
         return
-      if str(e)[:5] == '[100]':
-        update.message.reply_text(f'Такой страницы не существует')
-        return
-      log.debug(f'Got {e} exception, handling...')
       try:
         path, domain = url.split('https://vk.com/')
         user = vk.users.get(user_ids=domain)
@@ -153,6 +150,9 @@ def add_feed(update, context):
       except vk_api.exceptions.ApiError as e:
         if str(e)[:4] == '[30]':
           update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
+          return
+        if str(e)[:5] == '[113]':
+          update.message.reply_text(f'Такой страницы не существует')
           return
         log.debug(f'Got {e} exception, handling...')
     except ValueError:
