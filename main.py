@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.2'
+VERSION = '0.9.3'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -286,4 +286,5 @@ if __name__ == '__main__':
     log.error('Main thread ended, stopping updater...')
     updater.stop()
   except Exception as e:
+    updater.stop()
     log.error((traceback.format_exc()))
