@@ -2,7 +2,7 @@ import os
 import json
 import logging
 
-log = logging.getLogger()
+log = logging.getLogger('main')
 
 def init(name):
   log.debug(f'Initializing {name}.json')
