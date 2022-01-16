@@ -5,7 +5,7 @@ import telegram
 from telegram import InputMediaPhoto, InputMediaDocument
 import db
 
-log = logging.getLogger()
+log = logging.getLogger('main')
 
 def get_photo(attachment):
   sizes = attachment['photo']['sizes']

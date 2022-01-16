@@ -13,14 +13,14 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.3'
+VERSION = '0.9.4'
 
 # Logger setup
 with suppress(FileExistsError):
   os.makedirs('logs')
   print('Created logs folder')
 
-log = logging.getLogger('')
+log = logging.getLogger('main')
 log.setLevel(logging.DEBUG)
 
 filename = datetime.datetime.now().strftime('%Y-%m-%d') + '.log'
