@@ -117,7 +117,7 @@ def add_feed(update, context):
       add_user_to_db(user_id, update)
       users = db.read('users')
     try:
-      path, domain = url.split('https://vk.com/')
+      domain = url.split('/')[-1]
       group = vk.groups.getById(group_id=domain)
       vk_id = int(group[0]['id']) * -1
       name = group[0]['name']
@@ -125,7 +125,10 @@ def add_feed(update, context):
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-        last_id = posts[1]['id']
+        if len(posts) > 1:
+          last_id = posts[1]['id']
+        else:
+          last_id = 0
         users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
@@ -135,7 +138,7 @@ def add_feed(update, context):
         update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
         return
       try:
-        path, domain = url.split('https://vk.com/')
+        domain = url.split('/')[-1]
         user = vk.users.get(user_ids=domain)
         vk_id = int(user[0]['id'])
         name = user[0]['first_name'] + ' ' + user[0]['last_name']
@@ -143,7 +146,10 @@ def add_feed(update, context):
           update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
         else:
           posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-          last_id = posts[1]['id']
+          if len(posts) > 1:
+            last_id = posts[1]['id']
+          else:
+            last_id = 0
           users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
           db.write('users', users)
           update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
@@ -186,7 +192,7 @@ def remove_from_feed(update, context):
       users = db.read('users')
     try:
       url = str(context.args[0])
-      start, domain = url.split('https://vk.com/')
+      domain = url.split('/')[-1]
       if domain in users[user_id]['feeds']:
         name = users[user_id]['feeds'][domain]['name']
         users[user_id]['feeds'].pop(domain)
