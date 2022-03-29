@@ -161,5 +161,5 @@ def send_post(vk, tg, user_id, post, poster_name, domain, feed_id):
     log.warning(traceback.format_exc())
     admin_id = db.read('params')['admin']
     if admin_id:
-      tg.send_message(chat_id=admin_id, text = error_msg)
-      tg.send_message(chat_id=admin_id, text = traceback.format_exc())
+      tg.send_message(chat_id=admin_id, text = error_msg, disable_notification=True)
+      # tg.send_message(chat_id=admin_id, text = traceback.format_exc())

@@ -13,7 +13,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.4'
+VERSION = '0.10.0'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -252,9 +252,9 @@ def mainloop():
     log.error(traceback.format_exc())
     admin_id = db.read('params')['admin']
     if admin_id:
-      error_msg = 'VK Feed Bot stopped with an exception'
-      tg.send_message(chat_id=admin_id, text = error_msg)
-      tg.send_message(chat_id=admin_id, text = traceback.format_exc())
+      error_msg = f'VK Feed Bot stopped with an exception {e}'
+      tg.send_message(chat_id=admin_id, text = error_msg, disable_notification=True)
+      # tg.send_message(chat_id=admin_id, text = traceback.format_exc())
     return 0
 
 if __name__ == '__main__':
@@ -273,7 +273,7 @@ if __name__ == '__main__':
           msg += f'\n  {user}'
       else:
         msg += f'Whitelist disabled'
-      tg.send_message(chat_id=admin_id, text = msg)
+      tg.send_message(chat_id=admin_id, text = msg, disable_notification=True)
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
