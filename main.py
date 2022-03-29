@@ -4,16 +4,17 @@ import getopt
 import time
 import datetime
 import vk_api
-import telegram
 import logging
 from contextlib import suppress
+import telegram
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 import telegram.ext
-from telegram.ext import CommandHandler, MessageHandler, Filters
+from telegram.ext import CommandHandler, MessageHandler, Filters, CallbackQueryHandler
 import db
 import traceback
 import vk_posts
 
-VERSION = '0.9.4'
+VERSION = '0.10.0'
 
 # Logger setup
 with suppress(FileExistsError):
@@ -117,7 +118,7 @@ def add_feed(update, context):
       add_user_to_db(user_id, update)
       users = db.read('users')
     try:
-      path, domain = url.split('https://vk.com/')
+      domain = url.split('/')[-1]
       group = vk.groups.getById(group_id=domain)
       vk_id = int(group[0]['id']) * -1
       name = group[0]['name']
@@ -125,7 +126,10 @@ def add_feed(update, context):
         update.message.reply_text(f'Группа "{name}" уже есть в ленте')
       else:
         posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-        last_id = posts[1]['id']
+        if len(posts) > 1:
+          last_id = posts[1]['id']
+        else:
+          last_id = 0
         users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
         db.write('users', users)
         update.message.reply_text(f'Группа "{name}" добавлена в ленту')
@@ -135,7 +139,7 @@ def add_feed(update, context):
         update.message.reply_text(f'Страница "{name}" приватная, добавить её в ленту нельзя')
         return
       try:
-        path, domain = url.split('https://vk.com/')
+        domain = url.split('/')[-1]
         user = vk.users.get(user_ids=domain)
         vk_id = int(user[0]['id'])
         name = user[0]['first_name'] + ' ' + user[0]['last_name']
@@ -143,7 +147,10 @@ def add_feed(update, context):
           update.message.reply_text(f'Пользователь "{name}" уже есть в ленте')
         else:
           posts = vk.wall.get(owner_id=vk_id, count=2)['items']
-          last_id = posts[1]['id']
+          if len(posts) > 1:
+            last_id = posts[1]['id']
+          else:
+            last_id = 0
           users[user_id]['feeds'].update({domain:{'post_id':last_id, 'name':name, 'id':vk_id}})
           db.write('users', users)
           update.message.reply_text(f'Пользователь "{name}" добавлен в ленту')
@@ -186,7 +193,7 @@ def remove_from_feed(update, context):
       users = db.read('users')
     try:
       url = str(context.args[0])
-      start, domain = url.split('https://vk.com/')
+      domain = url.split('/')[-1]
       if domain in users[user_id]['feeds']:
         name = users[user_id]['feeds'][domain]['name']
         users[user_id]['feeds'].pop(domain)
@@ -213,6 +220,83 @@ def whitelisted(user_id, notify=False):
       return False
   else:
     return True
+
+def get_inline_options_keyboard(options_dict, columns=2):
+  keyboard = []
+  for index in range(0, len(options_dict), columns):
+    row = []
+    for offset in range(columns):
+      with suppress(IndexError):
+        option_key = list(options_dict.keys())[index + offset]
+        row.append(InlineKeyboardButton(option_key, callback_data=options_dict[option_key]))
+    keyboard.append(row)
+  return keyboard
+
+def get_posts(update, context):
+  if whitelisted(update.message.chat['id'], True):
+    user_id = str(update.message.chat['id'])
+    users = db.read('users')
+    if user_id not in users:
+      add_user_to_db(user_id, update)
+      users = db.read('users')
+    text, reply_markup = handle_posts_query(users, user_id)
+    update.message.reply_text(text, reply_markup=reply_markup)
+
+def handle_posts_query(users, user_id, query='0::'):
+  page_entries = 5
+  columns = 1
+  page, chosen_feed, number_of_posts = query.split(':')
+  page = int(page)
+  if page < 0: page = 0
+  if chosen_feed:
+    chosen_feed_name = users[user_id]['feeds'][chosen_feed]['name']
+    if number_of_posts:
+      number_of_posts = int(number_of_posts)
+      vk_id = users[user_id]['feeds'][chosen_feed]['id']
+      log.info(f'Getting {number_of_posts} posts from {chosen_feed}')
+      posts = vk.wall.get(owner_id=vk_id, count=number_of_posts)['items']
+      posts.reverse()
+      for post in posts:
+        vk_posts.send_post(vk, tg, user_id, post, chosen_feed_name, chosen_feed, vk_id)
+      text = f'Лента: {chosen_feed_name}\nКоличество постов: {number_of_posts}'
+      return text, None
+    else:
+      options_dict = {}
+      for number in range(1, 21):
+        options_dict.update({number:f'posts|{page}:{chosen_feed}:{number}'})
+      keyboard = get_inline_options_keyboard(options_dict, columns=4)
+      reply_markup = InlineKeyboardMarkup(keyboard)
+      text = f'Лента: {chosen_feed_name}\nКоличество постов?'
+      return text, reply_markup
+  else:
+    options_dict = {}
+    feed_slice_start = page * page_entries
+    feed_slice_end = feed_slice_start + page_entries
+    feed_page = list(users[user_id]['feeds'].keys())[feed_slice_start:feed_slice_end]
+    for feed in feed_page:
+      feed_name = users[user_id]['feeds'][feed]['name']
+      options_dict.update({feed_name:f'posts|{page}:{feed}:{number_of_posts}'})
+    keyboard = get_inline_options_keyboard(options_dict, columns)
+    keyboard += [
+        InlineKeyboardButton('<', callback_data=f'posts|{page-1}:{chosen_feed}:{number_of_posts}'),
+        InlineKeyboardButton('>', callback_data=f'posts|{page+1}:{chosen_feed}:{number_of_posts}'),
+        ],
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    text = f'Лента для просмотра постов\nстр. {page+1}'
+    return text, reply_markup
+
+def callback_handler(update, context):
+  users = db.read('users')
+  query = update.callback_query
+  user_id = str(query.message.chat_id)
+  function, option = query.data.split('|')
+  if function == 'posts':
+    text, reply_markup = handle_posts_query(users, user_id, option)
+  else:
+    query.answer()
+  with suppress(telegram.error.BadRequest):
+    query.edit_message_text(text=text, reply_markup=reply_markup)
+  query.answer()
 
 def mainloop():
   try:
@@ -252,9 +336,9 @@ def mainloop():
     log.error(traceback.format_exc())
     admin_id = db.read('params')['admin']
     if admin_id:
-      error_msg = 'VK Feed Bot stopped with an exception'
-      tg.send_message(chat_id=admin_id, text = error_msg)
-      tg.send_message(chat_id=admin_id, text = traceback.format_exc())
+      error_msg = f'VK Feed Bot stopped with an exception {e}'
+      tg.send_message(chat_id=admin_id, text = error_msg, disable_notification=True)
+      # tg.send_message(chat_id=admin_id, text = traceback.format_exc())
     return 0
 
 if __name__ == '__main__':
@@ -273,7 +357,7 @@ if __name__ == '__main__':
           msg += f'\n  {user}'
       else:
         msg += f'Whitelist disabled'
-      tg.send_message(chat_id=admin_id, text = msg)
+      tg.send_message(chat_id=admin_id, text = msg, disable_notification=True)
     updater = telegram.ext.Updater(tg_token)
     dispatcher = updater.dispatcher
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, add_feed))
@@ -281,6 +365,8 @@ if __name__ == '__main__':
     dispatcher.add_handler(CommandHandler('start', start_command))
     dispatcher.add_handler(CommandHandler('feed', show_feed))
     dispatcher.add_handler(CommandHandler('remove', remove_from_feed))
+    dispatcher.add_handler(CommandHandler('posts', get_posts))
+    dispatcher.add_handler(CallbackQueryHandler(callback_handler))
     updater.start_polling()
     mainloop()
     log.error('Main thread ended, stopping updater...')
