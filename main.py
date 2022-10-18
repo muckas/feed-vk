@@ -14,7 +14,7 @@ import db
 import traceback
 import vk_posts
 
-VERSION = '0.10.0'
+VERSION = '0.10.1'
 
 # Logger setup
 with suppress(FileExistsError):
